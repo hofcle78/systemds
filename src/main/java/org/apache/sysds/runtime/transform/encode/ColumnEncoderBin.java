@@ -42,6 +42,8 @@ public class ColumnEncoderBin extends ColumnEncoder {
 	public static final String NBINS_PREFIX = "nbins";
 	private static final long serialVersionUID = 1917445005206076078L;
 	protected int _numBin = -1;
+	private BinMethod _binMethod = BinMethod.EQUI_WIDTH;
+	private double[] _sortedInput = null;
 
 	// frame transform-apply attributes
 	// a) column bin boundaries
@@ -55,9 +57,11 @@ public class ColumnEncoderBin extends ColumnEncoder {
 		super(-1);
 	}
 
-	public ColumnEncoderBin(int colID, int numBin) {
+	public ColumnEncoderBin(int colID, int numBin, BinMethod binMethod) {
 		super(colID);
 		_numBin = numBin;
+		_binMethod = binMethod;
+		System.out.println("¬ ColumnEncoderBin: colID="+ _colID + " numbin=" + _numBin + " binMethod=" + _binMethod);
 	}
 
 	public ColumnEncoderBin(int colID, int numBin, double[] binMins, double[] binMaxs) {
@@ -85,11 +89,19 @@ public class ColumnEncoderBin extends ColumnEncoder {
 
 	@Override
 	public void build(CacheBlock in) {
+		System.out.println("¬ ColumnEncoder::build");
 		long t0 = DMLScript.STATISTICS ? System.nanoTime() : 0;
 		if(!isApplicable())
 			return;
-		double[] pairMinMax = getMinMaxOfCol(in, _colID, 0, -1);
-		computeBins(pairMinMax[0], pairMinMax[1]);
+		if(_binMethod == BinMethod.EQUI_WIDTH) {
+			double[] pairMinMax = getMinMaxOfCol(in, _colID, 0, -1);
+			computeBins(pairMinMax[0], pairMinMax[1]);
+		}
+		else if(_binMethod == BinMethod.EQUI_HEIGHT) {
+			prepareDataForEqualHeightBins(in, _colID, 0, -1);
+			computeEqualHeightBins();
+		}
+
 		if(DMLScript.STATISTICS)
 			Statistics.incTransformBinningBuildTime(System.nanoTime()-t0);
 	}
@@ -101,11 +113,26 @@ public class ColumnEncoderBin extends ColumnEncoder {
 		}
 		// Returns NaN if value is missing, so can't be assigned a Bin
 		double inVal = in.getDoubleNaN(row, _colID - 1);
-		if (Double.isNaN(inVal) || inVal < _binMins[0] || inVal > _binMaxs[_binMaxs.length-1] )
+		if (Double.isNaN(inVal))
 			return Double.NaN;
-		int ix = Arrays.binarySearch(_binMaxs, inVal);
+		if (_binMethod == BinMethod.EQUI_WIDTH) {
+			if (inVal < _binMins[0] || inVal > _binMaxs[_binMaxs.length-1])
+				return Double.NaN;
+			int ix = Arrays.binarySearch(_binMaxs, inVal);
 
-		return ((ix < 0) ? Math.abs(ix + 1) : ix) + 1;
+			return ((ix < 0) ? Math.abs(ix + 1) : ix) + 1;
+		}
+		if (_binMethod == BinMethod.EQUI_HEIGHT) {
+			int ix = Arrays.binarySearch(_sortedInput, inVal);
+			if (ix < 0)
+				return Double.NaN;
+			for(int binIx = 0; binIx < _numBin; binIx++) {
+				if(ix <= _binMaxs[binIx])
+					return binIx + 1;
+			}
+		}
+		System.out.println("¬ ColumnEncoderBin::getCode: return Double.NaN" );
+		return Double.NaN;
 	}
 
 	@Override
@@ -127,6 +154,18 @@ public class ColumnEncoderBin extends ColumnEncoder {
 		return new double[] {min, max};
 	}
 
+	private void prepareDataForEqualHeightBins(CacheBlock in, int colID, int startRow, int blockSize) {
+		int numRows = getEndIndex(in.getNumRows(), startRow, blockSize) - startRow;
+		_sortedInput = new double[numRows];
+		for(int i = startRow; i < numRows; i++) {
+			double inVal = in.getDouble(i, colID - 1);
+			if(Double.isNaN(inVal)) //TODO: How to handle NaN? [CHO]
+				continue;
+			_sortedInput[i] = inVal;
+		}
+		Arrays.sort(_sortedInput);
+	}
+
 	@Override
 	public Callable<Object> getBuildTask(CacheBlock in) {
 		return new ColumnBinBuildTask(this, in);
@@ -144,6 +183,7 @@ public class ColumnEncoderBin extends ColumnEncoder {
 	}
 
 	public void computeBins(double min, double max) {
+		System.out.println("¬ ColumnEncoderBin::computeBins");
 		// ensure allocated internal transformation metadata
 		if(_binMins == null || _binMaxs == null) {
 			_binMins = new double[_numBin];
@@ -153,6 +193,30 @@ public class ColumnEncoderBin extends ColumnEncoder {
 			_binMins[i] = min + i * (max - min) / _numBin;
 			_binMaxs[i] = min + (i + 1) * (max - min) / _numBin;
 		}
+	}
+
+	private void computeEqualHeightBins() {
+		System.out.println("¬ ColumnEncoderBin::computeEqualHeightBins");
+		//_numBin = 4;
+		//_sortedInput = new double[]{1, 2, 3, 4, 5, 6, 7, 8};
+		if(_binMins == null || _binMaxs == null) {
+			_binMins = new double[_numBin];
+			_binMaxs = new double[_numBin];
+		}
+		double[] quantiles = new double[_numBin];
+		int n = _sortedInput.length;
+		for(int i = 0; i < _numBin; i++) {
+			quantiles[i] = (i + 1) * (1.0 / _numBin);
+
+			double product = n * quantiles[i];
+			if(product % 1 == 0) { // product == integer
+				_binMaxs[i] = 0.5 * (product + product + 1);
+			} else { // product != integer
+				_binMaxs[i] = Math.floor(product) + 1;
+			}
+		}
+		_binMins[0] = 0;
+		System.arraycopy(_binMaxs, 0, _binMins, 1, _numBin - 1);
 	}
 
 	public void prepareBuildPartial() {
@@ -265,6 +329,10 @@ public class ColumnEncoderBin extends ColumnEncoder {
 			_binMaxs[j] = in.readDouble();
 			_binMins[j] = in.readDouble();
 		}
+	}
+
+	public enum BinMethod {
+		INVALID, EQUI_WIDTH, EQUI_HEIGHT
 	}
 
 	private static class BinSparseApplyTask extends ColumnApplyTask<ColumnEncoderBin> {

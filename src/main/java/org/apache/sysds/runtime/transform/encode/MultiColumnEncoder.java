@@ -287,6 +287,7 @@ public class MultiColumnEncoder implements Encoder {
 	}
 
 	private List<DependencyTask<?>> getApplyTasks(CacheBlock in, MatrixBlock out, int outputCol) {
+		System.out.println("¬ MulticolumnEncoder::getApplyTasks");
 		List<DependencyTask<?>> tasks = new ArrayList<>();
 		int offset = outputCol;
 		for(ColumnEncoderComposite e : _columnEncoders) {
@@ -298,6 +299,7 @@ public class MultiColumnEncoder implements Encoder {
 	}
 
 	private void applyMT(CacheBlock in, MatrixBlock out, int outputCol, int k) {
+		System.out.println("¬ MulticolumnEncoder::applyMT");
 		DependencyThreadPool pool = new DependencyThreadPool(k);
 		try {
 			if(APPLY_ENCODER_SEPARATE_STAGES){

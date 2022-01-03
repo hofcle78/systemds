@@ -33,17 +33,20 @@ import org.apache.sysds.utils.Statistics;
 
 public class TransformFrameEncodeApplyTest extends AutomatedTestBase {
 	private final static String TEST_NAME1 = "TransformFrameEncodeApply";
+	private final static String TEST_NAME_TEMP = "TransformFrameEncodeApply_test";
 	private final static String TEST_DIR = "functions/transform/";
 	private final static String TEST_CLASS_DIR = TEST_DIR + TransformFrameEncodeApplyTest.class.getSimpleName() + "/";
 	
 	//dataset and transform tasks without missing values
 	private final static String DATASET1 = "homes3/homes.csv";
+	private final static String DATASETTEMP = "homes3/homes_temp.csv";
 	private final static String SPEC1    = "homes3/homes.tfspec_recode.json";
 	private final static String SPEC1b   = "homes3/homes.tfspec_recode2.json";
 	private final static String SPEC2    = "homes3/homes.tfspec_dummy.json";
 	private final static String SPEC2b   = "homes3/homes.tfspec_dummy2.json";
 	private final static String SPEC3    = "homes3/homes.tfspec_bin.json"; //recode
 	private final static String SPEC3b   = "homes3/homes.tfspec_bin2.json"; //recode
+	private final static String SPEC3temp   = "homes3/homes.tfspec_bin_height.json"; //recode
 	private final static String SPEC6    = "homes3/homes.tfspec_recode_dummy.json";
 	private final static String SPEC6b   = "homes3/homes.tfspec_recode_dummy2.json";
 	private final static String SPEC7    = "homes3/homes.tfspec_binDummy.json"; //recode+dummy
@@ -70,6 +73,7 @@ public class TransformFrameEncodeApplyTest extends AutomatedTestBase {
 		RECODE_DUMMY,
 		BIN,
 		BIN_DUMMY,
+		BIN_HEIGHT,
 		IMPUTE,
 		OMIT,
 		HASH,
@@ -130,6 +134,11 @@ public class TransformFrameEncodeApplyTest extends AutomatedTestBase {
 	@Test
 	public void testHomesBinningIDsSingleNodeCSV() {
 		runTransformTest(ExecMode.SINGLE_NODE, "csv", TransformType.BIN, false);
+	}
+
+	@Test
+	public void testHomesEqualHeightBinningIDsSingleNodeCSV() {
+		runTransformTest(ExecMode.SINGLE_NODE, "csv", TransformType.BIN_HEIGHT, true);
 	}
 	
 	@Test
@@ -369,6 +378,7 @@ public class TransformFrameEncodeApplyTest extends AutomatedTestBase {
 			case RECODE: SPEC = colnames?SPEC1b:SPEC1; DATASET = DATASET1; break;
 			case DUMMY:  SPEC = colnames?SPEC2b:SPEC2; DATASET = DATASET1; break;
 			case BIN:    SPEC = colnames?SPEC3b:SPEC3; DATASET = DATASET1; break;
+			case BIN_HEIGHT:    SPEC = SPEC3temp; DATASET = DATASETTEMP; break;
 			case IMPUTE: SPEC = colnames?SPEC4b:SPEC4; DATASET = DATASET2; break;
 			case OMIT:   SPEC = colnames?SPEC5b:SPEC5; DATASET = DATASET2; break;
 			case RECODE_DUMMY: SPEC = colnames?SPEC6b:SPEC6; DATASET = DATASET1; break;
@@ -385,7 +395,8 @@ public class TransformFrameEncodeApplyTest extends AutomatedTestBase {
 			getAndLoadTestConfiguration(TEST_NAME1);
 			
 			String HOME = SCRIPT_DIR + TEST_DIR;
-			fullDMLScriptName = HOME + TEST_NAME1 + ".dml";
+			// fullDMLScriptName = HOME + TEST_NAME1 + ".dml";
+			fullDMLScriptName = HOME + TEST_NAME_TEMP + ".dml"; //TODO: DELETE!!!
 			programArgs = new String[]{"-nvargs", 
 				"DATA=" + DATASET_DIR + DATASET,
 				"TFSPEC=" + DATASET_DIR + SPEC,

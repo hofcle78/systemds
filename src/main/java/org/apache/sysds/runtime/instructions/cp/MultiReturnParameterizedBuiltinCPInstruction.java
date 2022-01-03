@@ -91,6 +91,7 @@ public class MultiReturnParameterizedBuiltinCPInstruction extends ComputationCPI
 		FrameBlock meta = encoder.getMetaData(new FrameBlock(fin.getNumColumns(), ValueType.STRING), 
 				OptimizerUtils.getTransformNumThreads());
 		meta.setColumnNames(colnames);
+		System.out.println("¬ MultiReturnParameterizedBuiltinCPInstruction::processInstruction: Data:" + data.getDenseBlock());
 
 		// release input and outputs
 		ec.releaseFrameInput(input1.getName());

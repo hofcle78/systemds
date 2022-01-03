@@ -1,0 +1,4 @@
+{
+  "ids": true, "bin": [
+  { "id": 1, "method": "equi-height", "numbins": 4 }]
+}
